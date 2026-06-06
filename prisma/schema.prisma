@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Contact {
+  id              String         @id @default(cuid())
+  name            String
+  email           String?
+  phone           String?
+  company         String?
+  jobProfile      String?
+  platform        String?
+  profileLink     String?
+  status          Status         @default(NEW)
+  responseStatus  ResponseStatus @default(NO_REPLY)
+  priority        Priority       @default(MEDIUM)
+  tags            String[]       @default([])
+  notes           String?
+  followUpDate    DateTime?
+  followUpCount   Int            @default(0)
+  lastContactedAt DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  activities      Activity[]
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  contactId   String
+  type        ActivityType
+  description String
+  createdAt   DateTime     @default(now())
+  contact     Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+}
+
+enum Status {
+  NEW
+  CONTACTED
+  AWAITING_RESPONSE
+  REPLIED
+  INTERVIEW_SCHEDULED
+  OFFER_RECEIVED
+  WON
+  LOST
+}
+
+enum ResponseStatus {
+  NO_REPLY
+  REPLIED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ActivityType {
+  CONTACT_CREATED
+  MESSAGE_SENT
+  STATUS_UPDATED
+  FOLLOW_UP_SCHEDULED
+  INTERVIEW_SCHEDULED
+  OFFER_RECEIVED
+  NOTE_ADDED
+}
