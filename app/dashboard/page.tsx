@@ -6,6 +6,8 @@ import RecentActivity from '@/components/dashboard/RecentActivity';
 import FollowUpWidget from '@/components/dashboard/FollowUpWidget';
 import UpcomingFollowUps from '@/components/dashboard/UpcomingFollowUps';
 
+export const dynamic = 'force-dynamic';
+
 async function getDashboardData() {
   const [contacts, activities] = await Promise.all([
     prisma.contact.findMany({

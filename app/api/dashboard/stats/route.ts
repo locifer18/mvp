@@ -1,29 +1,32 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { isPast } from 'date-fns';
+import { isPast, isToday } from 'date-fns';
 
 export async function GET() {
   const contacts = await prisma.contact.findMany({ where: { deletedAt: null } });
-  const total = contacts.length;
-  const contacted = contacts.filter(c => c.status !== 'NEW').length;
-  const replied = contacts.filter(c =>
-    ['REPLIED', 'INTERVIEW_SCHEDULED', 'OFFER_RECEIVED', 'WON'].includes(c.status)
-  ).length;
-  const interviews = contacts.filter(c =>
-    ['INTERVIEW_SCHEDULED', 'OFFER_RECEIVED', 'WON'].includes(c.status)
-  ).length;
-  const offers = contacts.filter(c => ['OFFER_RECEIVED', 'WON'].includes(c.status)).length;
-  const won = contacts.filter(c => c.status === 'WON').length;
-  const lost = contacts.filter(c => c.status === 'LOST').length;
-  const needsFollowUp = contacts.filter(
-    c => c.status === 'AWAITING_RESPONSE' && c.followUpDate && isPast(c.followUpDate)
+
+  const total        = contacts.length;
+  const contacted    = contacts.filter(c => c.status !== 'NEW').length;
+  const replied      = contacts.filter(c => c.responseStatus === 'REPLIED').length;
+  const interviews   = contacts.filter(c => ['INTERVIEW_SCHEDULED', 'OFFER_RECEIVED', 'WON'].includes(c.status)).length;
+  const offers       = contacts.filter(c => ['OFFER_RECEIVED', 'WON'].includes(c.status)).length;
+  const won          = contacts.filter(c => c.status === 'WON').length;
+  const lost         = contacts.filter(c => c.status === 'LOST').length;
+  const awaiting     = contacts.filter(c => ['AWAITING_RESPONSE', 'CONTACTED'].includes(c.status)).length;
+  const needsFollowUp = contacts.filter(c =>
+    c.followUpDate &&
+    (isPast(new Date(c.followUpDate)) || isToday(new Date(c.followUpDate))) &&
+    c.responseStatus !== 'REPLIED' &&
+    !['WON', 'LOST', 'OFFER_RECEIVED'].includes(c.status)
   ).length;
 
+  const safeDiv = (a: number, b: number) => b > 0 ? Math.round((a / b) * 100) : 0;
+
   return NextResponse.json({
-    total, contacted, replied, interviews, offers, won, lost, needsFollowUp,
-    replyRate: contacted > 0 ? Math.round((replied / contacted) * 100) : 0,
-    interviewRate: replied > 0 ? Math.round((interviews / replied) * 100) : 0,
-    offerRate: interviews > 0 ? Math.round((offers / interviews) * 100) : 0,
-    successRate: total > 0 ? Math.round((won / total) * 100) : 0,
+    total, contacted, awaiting, replied, interviews, offers, won, lost, needsFollowUp,
+    replyRate:     safeDiv(replied, contacted),
+    interviewRate: safeDiv(interviews, replied),
+    offerRate:     safeDiv(offers, interviews),
+    successRate:   safeDiv(won, total),
   });
 }
