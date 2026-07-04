@@ -1,13 +1,14 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Plus, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Users, Plus, Activity, ChevronLeft, ChevronRight, Mail } from 'lucide-react';
 import { useState } from 'react';
 
 const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/contacts/new', label: 'Add Contact', icon: Plus },
+  { href: '/mail', label: 'Mail', icon: Mail },
 ];
 
 export default function Sidebar() {
@@ -51,7 +52,8 @@ export default function Sidebar() {
             path === href ||
             (href === '/contacts' &&
               path.startsWith('/contacts') &&
-              path !== '/contacts/new');
+              path !== '/contacts/new') ||
+            (href === '/mail' && path.startsWith('/mail'));
           return (
             <Link
               key={href}
