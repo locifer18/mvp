@@ -1,7 +1,7 @@
 import {
-  Users, MessageSquare, Inbox, Calendar,
-  Gift, Trophy, XCircle, AlertCircle,
-  TrendingUp, BarChart2, Target, Percent,
+  Users, MessageSquare, Inbox, TrendingUp,
+  Calendar, Gift, Trophy, XCircle,
+  AlertCircle, Percent,
 } from 'lucide-react';
 
 interface Stats {
@@ -10,6 +10,7 @@ interface Stats {
   awaiting: number;
   replied: number;
   interviews: number;
+  reachedInterview: number;
   offers: number;
   won: number;
   lost: number;
@@ -21,7 +22,7 @@ interface Stats {
 }
 
 function StatCard({
-  label, value, icon: Icon, color, sub, highlight,
+  label, value, icon: Icon, color, sub, highlight, dim,
 }: {
   label: string;
   value: number | string;
@@ -29,17 +30,26 @@ function StatCard({
   color: string;
   sub?: string;
   highlight?: boolean;
+  dim?: boolean;
 }) {
   return (
     <div className={`bg-[#111118] border rounded-xl p-4 flex flex-col gap-2 ${
-      highlight ? 'border-yellow-800/60' : 'border-[#1e1e2e]'
+      highlight ? 'border-yellow-800/60' : dim ? 'border-[#1a1a26]' : 'border-[#1e1e2e]'
     }`}>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-500 leading-tight">{label}</span>
-        <Icon size={14} className={color} />
+        <span className={`text-xs leading-tight ${dim ? 'text-slate-600' : 'text-slate-500'}`}>
+          {label}
+        </span>
+        <Icon size={14} className={dim ? 'text-slate-700' : color} />
       </div>
-      <div className="text-2xl font-bold text-slate-100 leading-none">{value}</div>
-      {sub && <div className="text-[11px] text-slate-500 leading-tight">{sub}</div>}
+      <div className={`text-2xl font-bold leading-none ${dim ? 'text-slate-600' : 'text-slate-100'}`}>
+        {value}
+      </div>
+      {sub && (
+        <div className={`text-[11px] leading-tight ${dim ? 'text-slate-700' : 'text-slate-500'}`}>
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
@@ -60,7 +70,6 @@ function RateCard({
       </div>
       <div className={`text-2xl font-bold leading-none ${color}`}>{value}%</div>
       <div className="text-[11px] text-slate-500 mt-1.5 leading-tight">{description}</div>
-      {/* Progress bar */}
       <div className="mt-2.5 h-1 bg-[#1e1e2e] rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${color.replace('text-', 'bg-')}`}
@@ -74,10 +83,13 @@ function RateCard({
 export default function StatsCards({ stats }: { stats: Stats }) {
   return (
     <div className="space-y-4">
-      {/* Pipeline counts */}
+
+      {/* Row 1 — Pipeline funnel */}
       <div>
-        <p className="text-xs text-slate-600 uppercase tracking-wider mb-2 font-medium">Pipeline</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <p className="text-xs text-slate-600 uppercase tracking-wider mb-2 font-medium">
+          Outreach Pipeline
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3">
           <StatCard
             label="Total"
             value={stats.total}
@@ -111,7 +123,7 @@ export default function StatsCards({ stats }: { stats: Stats }) {
             value={stats.interviews}
             icon={Calendar}
             color="text-purple-400"
-            sub="In pipeline"
+            sub={`${stats.reachedInterview} total incl. rejected`}
           />
           <StatCard
             label="Offers"
@@ -125,53 +137,59 @@ export default function StatsCards({ stats }: { stats: Stats }) {
             value={stats.won}
             icon={Trophy}
             color="text-green-400"
-            sub="Accepted"
+            sub="Accepted offer"
           />
           <StatCard
             label="Lost"
             value={stats.lost}
             icon={XCircle}
             color="text-red-400"
-            sub="Closed out"
+            sub="Closed lost"
+          />
+          <StatCard
+            label="Needs Follow-Up"
+            value={stats.needsFollowUp}
+            icon={AlertCircle}
+            color="text-yellow-400"
+            sub="Overdue today"
+            highlight={stats.needsFollowUp > 0}
           />
         </div>
       </div>
 
-      {/* Follow-up alert + rates */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        <StatCard
-          label="Needs Follow-Up"
-          value={stats.needsFollowUp}
-          icon={AlertCircle}
-          color="text-yellow-400"
-          sub="Overdue today"
-          highlight={stats.needsFollowUp > 0}
-        />
-        <RateCard
-          label="Reply Rate"
-          value={stats.replyRate}
-          description={`${stats.replied} replied of ${stats.contacted} contacted`}
-          color="text-cyan-400"
-        />
-        <RateCard
-          label="Interview Rate"
-          value={stats.interviewRate}
-          description={`${stats.interviews} interviews from ${stats.replied} replies`}
-          color="text-purple-400"
-        />
-        <RateCard
-          label="Offer Rate"
-          value={stats.offerRate}
-          description={`${stats.offers} offers from ${stats.interviews} interviews`}
-          color="text-orange-400"
-        />
-        <RateCard
-          label="Success Rate"
-          value={stats.successRate}
-          description={`${stats.won} won of ${stats.total} total`}
-          color="text-green-400"
-        />
+      {/* Row 3 — Conversion rates */}
+      <div>
+        <p className="text-xs text-slate-600 uppercase tracking-wider mb-2 font-medium">
+          Conversion Rates
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <RateCard
+            label="Reply Rate"
+            value={stats.replyRate}
+            description={`${stats.replied} replied of ${stats.contacted} contacted`}
+            color="text-cyan-400"
+          />
+          <RateCard
+            label="Interview Rate"
+            value={stats.interviewRate}
+            description={`${stats.reachedInterview} reached interview of ${stats.replied} replies`}
+            color="text-purple-400"
+          />
+          <RateCard
+            label="Offer Rate"
+            value={stats.offerRate}
+            description={`${stats.offers} offers from ${stats.reachedInterview} interviews`}
+            color="text-orange-400"
+          />
+          <RateCard
+            label="Success Rate"
+            value={stats.successRate}
+            description={`${stats.won} won of ${stats.total} total`}
+            color="text-green-400"
+          />
+        </div>
       </div>
+
     </div>
   );
 }

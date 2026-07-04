@@ -417,7 +417,6 @@ export default function ContactsTable({ data, searchParams }: Props) {
           <option value="REPLIED">Replied</option>
         </select>
         <ImportButton />
-        <span className="text-xs text-slate-600 hidden lg:block">Click any cell to edit</span>
       </div>
 
       {/* Table */}

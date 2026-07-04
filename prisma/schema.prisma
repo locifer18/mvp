@@ -16,7 +16,6 @@ model Contact {
   platform        String?
   profileLink     String?
   status          Status         @default(NEW)
-  responseStatus  ResponseStatus @default(NO_REPLY)
   priority        Priority       @default(MEDIUM)
   tags            String[]       @default([])
   notes           String?
@@ -47,11 +46,6 @@ enum Status {
   OFFER_RECEIVED
   WON
   LOST
-}
-
-enum ResponseStatus {
-  NO_REPLY
-  REPLIED
 }
 
 enum Priority {

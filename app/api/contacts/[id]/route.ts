@@ -3,15 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { contactSchema } from '@/lib/validations';
 import { addDays } from 'date-fns';
 
-// Ensure followUpCount column exists (runs once, safe to call every time)
-async function ensureFollowUpCount() {
+async function ensureColumns() {
   try {
     await prisma.$executeRawUnsafe(`
       ALTER TABLE "Contact" ADD COLUMN IF NOT EXISTS "followUpCount" INTEGER NOT NULL DEFAULT 0
     `);
-  } catch {
-    // Column already exists or DB doesn't support IF NOT EXISTS — ignore
-  }
+  } catch { /* ignore */ }
 }
 
 export async function GET(
@@ -31,7 +28,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  await ensureFollowUpCount();
+  await ensureColumns();
 
   const { id } = await params;
   const body = await req.json();
@@ -55,17 +52,6 @@ export async function PUT(
     : existing.followUpDate ?? null;
   let followUpCount = existingFollowUpCount;
   let finalStatus = d.status;
-  const responseStatus = d.responseStatus;
-
-  // ── Got a reply → reset follow-up sequence ────────────────────────────────
-  if (d.responseStatus === 'REPLIED' && existing.responseStatus !== 'REPLIED') {
-    followUpCount = 0;
-    followUpDate = null;
-    newActivities.push({
-      type: 'STATUS_UPDATED',
-      description: 'Response received — follow-up sequence reset',
-    });
-  }
 
   // ── Status changed ────────────────────────────────────────────────────────
   if (existing.status !== d.status) {
@@ -82,7 +68,6 @@ export async function PUT(
     if (
       (d.status === 'CONTACTED' || d.status === 'AWAITING_RESPONSE') &&
       (existing.status === 'NEW' || existing.status === 'CONTACTED') &&
-      responseStatus !== 'REPLIED' &&
       followUpCount === 0
     ) {
       followUpCount = 1;
@@ -103,7 +88,6 @@ export async function PUT(
   if (
     incomingDate &&
     incomingDate !== existingDate &&
-    responseStatus !== 'REPLIED' &&
     !newActivities.some(a => a.type === 'FOLLOW_UP_SCHEDULED')
   ) {
     followUpCount = Math.min(existingFollowUpCount + 1, 3);
@@ -114,16 +98,13 @@ export async function PUT(
     });
   }
 
-  // ── 3 follow-ups no reply → auto LOST ─────────────────────────────────────
-  if (
-    followUpCount >= 3 &&
-    responseStatus !== 'REPLIED' &&
-    !['WON', 'OFFER_RECEIVED', 'INTERVIEW_SCHEDULED', 'LOST'].includes(finalStatus)
-  ) {
+  // ── 3 follow-ups no reply → auto LOST ────────────────────────────────────
+  const ghostableStatuses = ['NEW', 'CONTACTED', 'AWAITING_RESPONSE'];
+  if (followUpCount >= 3 && ghostableStatuses.includes(finalStatus)) {
     finalStatus = 'LOST';
     newActivities.push({
       type: 'STATUS_UPDATED',
-      description: '3 follow-ups with no reply — automatically marked as Lost',
+      description: '3 follow-ups with no reply — automatically marked as Lost (ghosted)',
     });
   }
 
@@ -137,7 +118,6 @@ export async function PUT(
     platform:        d.platform || null,
     profileLink:     d.profileLink || null,
     status:          finalStatus,
-    responseStatus:  responseStatus,
     priority:        d.priority,
     tags:            d.tags,
     notes:           d.notes || null,

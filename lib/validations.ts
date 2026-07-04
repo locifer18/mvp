@@ -11,7 +11,6 @@ export const contactSchema = z.object({
   status: z
     .enum(['NEW', 'CONTACTED', 'AWAITING_RESPONSE', 'REPLIED', 'INTERVIEW_SCHEDULED', 'OFFER_RECEIVED', 'WON', 'LOST'])
     .default('NEW'),
-  responseStatus: z.enum(['NO_REPLY', 'REPLIED']).default('NO_REPLY'),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('MEDIUM'),
   tags: z.array(z.string()).default([]),
   notes: z.string().optional(),

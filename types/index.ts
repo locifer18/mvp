@@ -2,7 +2,6 @@ export type Status =
   | 'NEW' | 'CONTACTED' | 'AWAITING_RESPONSE' | 'REPLIED'
   | 'INTERVIEW_SCHEDULED' | 'OFFER_RECEIVED' | 'WON' | 'LOST';
 
-export type ResponseStatus = 'NO_REPLY' | 'REPLIED';
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
 export type ActivityType =
   | 'CONTACT_CREATED' | 'MESSAGE_SENT' | 'STATUS_UPDATED'
@@ -18,7 +17,6 @@ export interface Contact {
   platform?: string | null;
   profileLink?: string | null;
   status: Status;
-  responseStatus: ResponseStatus;
   priority: Priority;
   tags: string[];
   notes?: string | null;
