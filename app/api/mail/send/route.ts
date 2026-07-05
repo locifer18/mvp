@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
         attachments: [
           {
             filename: 'Ansh_Kanda.pdf',
-            path: path.join(process.cwd(), 'public', 'Ansh_kanda.pdf'),
+            path: path.join(process.cwd(), 'public', 'Ansh_Kanda.pdf'),
           },
         ],
       });
