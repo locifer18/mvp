@@ -39,6 +39,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const d = parsed.data;
+
+  // Check duplicate email before creating
+  if (d.email) {
+    const existing = await prisma.contact.findFirst({ where: { email: d.email } });
+    if (existing) return NextResponse.json({ error: 'A contact with this email already exists.' }, { status: 409 });
+  }
+
   const contact = await prisma.contact.create({
     data: {
       ...d,

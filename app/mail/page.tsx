@@ -8,33 +8,52 @@ export default async function MailRoute() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
 
-  const [raw, sentToday, logs] = await Promise.all([
-    prisma.contact.findMany({
-      where: { deletedAt: null, email: { not: null } },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.mailLog.count({ where: { sentAt: { gte: start } } }),
-    prisma.mailLog.findMany({
-      orderBy: { sentAt: 'desc' },
-      take: 100,
-      include: { contact: { select: { name: true, company: true } } },
-    }),
-  ]);
+  // Fetch contacts with email
+  const raw = await prisma.contact.findMany({
+    where: { deletedAt: null },
+    orderBy: { createdAt: 'desc' },
+  });
 
-  const contacts: Contact[] = raw.map(c => ({
-    ...c,
-    followUpDate:    c.followUpDate    ? c.followUpDate.toISOString()    : null,
-    lastContactedAt: c.lastContactedAt ? c.lastContactedAt.toISOString() : null,
-    deletedAt:       c.deletedAt       ? c.deletedAt.toISOString()       : null,
-    createdAt:       c.createdAt.toISOString(),
-    updatedAt:       c.updatedAt.toISOString(),
-    followUpCount:   (c as Record<string, unknown>).followUpCount as number ?? 0,
-  }));
+  const contacts: Contact[] = raw
+    .filter(c => c.email) // only show contacts that have email
+    .map(c => ({
+      ...c,
+      followUpDate:    c.followUpDate    ? c.followUpDate.toISOString()    : null,
+      lastContactedAt: c.lastContactedAt ? c.lastContactedAt.toISOString() : null,
+      deletedAt:       c.deletedAt       ? c.deletedAt.toISOString()       : null,
+      createdAt:       c.createdAt.toISOString(),
+      updatedAt:       c.updatedAt.toISOString(),
+      followUpCount:   (c as Record<string, unknown>).followUpCount as number ?? 0,
+    }));
 
-  const serializedLogs = logs.map(l => ({
-    ...l,
-    sentAt: l.sentAt.toISOString(),
-  }));
+  // Safely fetch mail logs — table may not exist yet if prisma db push hasn't run
+  let sentToday = 0;
+  let serializedLogs: {
+    id: string;
+    toEmail: string;
+    toName: string;
+    subject: string;
+    sentAt: string;
+    contact: { name: string; company: string | null };
+  }[] = [];
+
+  try {
+    const [count, logs] = await Promise.all([
+      prisma.mailLog.count({ where: { sentAt: { gte: start } } }),
+      prisma.mailLog.findMany({
+        orderBy: { sentAt: 'desc' },
+        take: 200,
+        include: { contact: { select: { name: true, company: true } } },
+      }),
+    ]);
+    sentToday = count;
+    serializedLogs = logs.map(l => ({
+      ...l,
+      sentAt: l.sentAt.toISOString(),
+    }));
+  } catch {
+    // MailLog table not yet created — run: npx prisma db push
+  }
 
   const LIMIT = 50;
 

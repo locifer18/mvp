@@ -159,29 +159,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ created: 0, errors: 0, message: 'No valid rows found. Make sure your CSV has a "name" column.' });
   }
 
-  const results = { created: 0, errors: 0 };
+  const results = { created: 0, errors: 0, skipped: 0 };
   const BATCH_SIZE = 50;
 
-  // Process in batches to avoid DB timeouts on large files
+  // Collect all emails from this import to dedupe within the file itself
+  const seenEmails = new Set<string>();
+
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
     await Promise.allSettled(
       batch.map(async (row) => {
+        // Skip duplicate emails within the same import
+        if (row.email) {
+          if (seenEmails.has(row.email.toLowerCase())) {
+            results.skipped++;
+            return;
+          }
+          seenEmails.add(row.email.toLowerCase());
+        }
         try {
           await prisma.contact.create({
             data: {
-              name:           row.name,
-              email:          row.email || null,
-              phone:          row.phone || null,
-              company:        row.company || null,
-              jobProfile:     row.jobProfile || null,
-              platform:       row.platform || null,
-              profileLink:    row.profileLink || null,
-              status:   row.status as never,
-              priority: row.priority as never,
-              tags:     row.tags ? row.tags.split(/[,;]/).map(t => t.trim()).filter(Boolean) : [],
-              notes:          row.notes || null,
-              followUpDate:   row.followUpDate ? new Date(row.followUpDate) : null,
+              name:        row.name,
+              email:       row.email || null,
+              phone:       row.phone || null,
+              company:     row.company || null,
+              jobProfile:  row.jobProfile || null,
+              platform:    row.platform || null,
+              profileLink: row.profileLink || null,
+              status:      row.status as never,
+              priority:    row.priority as never,
+              tags:        row.tags ? row.tags.split(/[,;]/).map(t => t.trim()).filter(Boolean) : [],
+              notes:       row.notes || null,
+              followUpDate: row.followUpDate ? new Date(row.followUpDate) : null,
               activities: {
                 create: {
                   type: 'CONTACT_CREATED',
@@ -191,8 +201,11 @@ export async function POST(req: NextRequest) {
             },
           });
           results.created++;
-        } catch {
-          results.errors++;
+        } catch (err) {
+          // P2002 = unique constraint violation (duplicate email)
+          const code = (err as Record<string, unknown>)?.code;
+          if (code === 'P2002') { results.skipped++; }
+          else { results.errors++; }
         }
       })
     );
@@ -201,7 +214,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     created: results.created,
     errors: results.errors,
+    skipped: results.skipped,
     total: rows.length,
-    message: `Successfully imported ${results.created} of ${rows.length} contacts.${results.errors > 0 ? ` ${results.errors} rows had errors.` : ''}`,
+    message: `Imported ${results.created} of ${rows.length} contacts.${
+      results.skipped > 0 ? ` ${results.skipped} skipped (duplicate email).` : ''
+    }${
+      results.errors > 0 ? ` ${results.errors} failed.` : ''
+    }`,
   });
 }

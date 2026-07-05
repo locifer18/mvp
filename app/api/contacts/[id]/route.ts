@@ -41,6 +41,12 @@ export async function PUT(
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const d = parsed.data;
+
+  // Check email uniqueness — only block if a DIFFERENT contact owns this email
+  if (d.email && d.email !== existing.email) {
+    const emailTaken = await prisma.contact.findFirst({ where: { email: d.email, NOT: { id } } });
+    if (emailTaken) return NextResponse.json({ error: 'This email is already used by another contact.' }, { status: 409 });
+  }
   const newActivities: { type: string; description: string }[] = [];
   const now = new Date();
 
@@ -140,8 +146,11 @@ export async function PUT(
       data: updateData as never,
     });
   } catch (err: unknown) {
+    const code = (err as Record<string, unknown>)?.code;
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('followUpCount')) {
+    if (code === 'P2002') {
+      return NextResponse.json({ error: 'This email is already used by another contact.' }, { status: 409 });
+    } else if (msg.includes('followUpCount')) {
       // Column missing from generated client — update without it, then raw update
       delete updateData.followUpCount;
       contact = await prisma.contact.update({

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import nodemailer from 'nodemailer';
+import { addDays } from 'date-fns';
+import path from 'path';
 
 const DAILY_LIMIT = 50;
 
@@ -90,10 +92,43 @@ export async function POST(req: NextRequest) {
         to: c.email,
         subject: finalSubject,
         text: finalBody,
+        attachments: [
+          {
+            filename: 'Ansh_Kanda.pdf',
+            path: path.join(process.cwd(), 'public', 'Ansh_kanda.pdf'),
+          },
+        ],
       });
       await prisma.mailLog.create({
         data: { contactId: c.id, toEmail: c.email, toName: c.name, subject: finalSubject },
       });
+
+      // Auto-update contact: mark CONTACTED + schedule follow-up in 3 days
+      const contact = await prisma.contact.findUnique({ where: { id: c.id } });
+      if (contact && ['NEW', 'CONTACTED'].includes(contact.status)) {
+        const followUpDate = addDays(new Date(), 3);
+        const existingCount = (contact as Record<string, unknown>).followUpCount as number ?? 0;
+        const followUpCount = existingCount === 0 ? 1 : existingCount;
+        await prisma.contact.update({
+          where: { id: c.id },
+          data: {
+            status: 'CONTACTED',
+            lastContactedAt: new Date(),
+            followUpDate,
+            activities: {
+              create: [
+                { type: 'MESSAGE_SENT', description: `Outreach email sent to ${c.email}` },
+                { type: 'FOLLOW_UP_SCHEDULED', description: `Follow-up #${followUpCount} auto-scheduled for ${followUpDate.toDateString()}` },
+              ],
+            },
+          },
+        });
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Contact" SET "followUpCount" = $1 WHERE id = $2`,
+          followUpCount,
+          c.id
+        );
+      }
       results.push({ id: c.id, name: c.name, success: true });
     } catch (err) {
       results.push({ id: c.id, name: c.name, success: false, error: err instanceof Error ? err.message : 'Failed' });
@@ -103,4 +138,25 @@ export async function POST(req: NextRequest) {
   const sent = results.filter(r => r.success).length;
   const failed = results.filter(r => !r.success).length;
   return NextResponse.json({ sent, failed, skipped, results, remainingToday: remaining - sent });
+}
+
+export async function DELETE(req: NextRequest) {
+  const { contactIds, logIds } = await req.json() as {
+    contactIds?: string[];
+    logIds?: string[];
+  };
+
+  const ops: Promise<unknown>[] = [];
+
+  if (logIds?.length) {
+    ops.push(prisma.mailLog.deleteMany({ where: { id: { in: logIds } } }));
+  }
+
+  if (contactIds?.length) {
+    // Hard delete contacts — cascades mailLogs and activities
+    ops.push(prisma.contact.deleteMany({ where: { id: { in: contactIds } } }));
+  }
+
+  await Promise.all(ops);
+  return NextResponse.json({ success: true });
 }

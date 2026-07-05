@@ -7,8 +7,8 @@ import { useState } from 'react';
 const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/contacts', label: 'Contacts', icon: Users },
-  { href: '/contacts/new', label: 'Add Contact', icon: Plus },
   { href: '/mail', label: 'Mail', icon: Mail },
+  { href: '/contacts/new', label: 'Add Contact', icon: Plus },
 ];
 
 export default function Sidebar() {
