@@ -7,7 +7,7 @@ export async function GET() {
 
   const total        = contacts.length;
   const contacted    = contacts.filter(c => c.status !== 'NEW').length;
-  const replied      = contacts.filter(c => c.responseStatus === 'REPLIED').length;
+  const replied      = contacts.filter(c => ['REPLIED','INTERVIEW_SCHEDULED','OFFER_RECEIVED','WON','LOST'].includes(c.status)).length;
   const interviews   = contacts.filter(c => ['INTERVIEW_SCHEDULED', 'OFFER_RECEIVED', 'WON'].includes(c.status)).length;
   const offers       = contacts.filter(c => ['OFFER_RECEIVED', 'WON'].includes(c.status)).length;
   const won          = contacts.filter(c => c.status === 'WON').length;
@@ -16,8 +16,7 @@ export async function GET() {
   const needsFollowUp = contacts.filter(c =>
     c.followUpDate &&
     (isPast(new Date(c.followUpDate)) || isToday(new Date(c.followUpDate))) &&
-    c.responseStatus !== 'REPLIED' &&
-    !['WON', 'LOST', 'OFFER_RECEIVED'].includes(c.status)
+    !['WON', 'LOST', 'OFFER_RECEIVED', 'REPLIED'].includes(c.status)
   ).length;
 
   const safeDiv = (a: number, b: number) => b > 0 ? Math.round((a / b) * 100) : 0;

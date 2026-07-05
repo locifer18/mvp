@@ -238,13 +238,6 @@ function FollowUpBadge({ count, status }: { count: number; status: string }) {
   );
 }
 
-// ── Response status badge ─────────────────────────────────────────────────────
-function ResponseBadge({ status }: { status: string }) {
-  return status === 'REPLIED'
-    ? <span className="px-1.5 py-0 text-[10px] bg-green-900/50 text-green-300 border border-green-700 rounded leading-5">Replied</span>
-    : <span className="px-1.5 py-0 text-[10px] bg-slate-800 text-slate-500 border border-slate-700 rounded leading-5">No Reply</span>;
-}
-
 // ── Main table ────────────────────────────────────────────────────────────────
 export default function ContactsTable({ data, searchParams }: Props) {
   const router = useRouter();
@@ -299,7 +292,6 @@ export default function ContactsTable({ data, searchParams }: Props) {
       platform:        updated.platform || '',
       profileLink:     updated.profileLink || '',
       status:          updated.status,
-      responseStatus:  updated.responseStatus,
       priority:        updated.priority,
       tags:            updated.tags || [],
       notes:           updated.notes || '',
@@ -344,8 +336,7 @@ export default function ContactsTable({ data, searchParams }: Props) {
   const needsFollowUp = (c: Contact) =>
     c.status === 'AWAITING_RESPONSE' &&
     c.followUpDate &&
-    isPast(new Date(c.followUpDate)) &&
-    c.responseStatus !== 'REPLIED';
+    isPast(new Date(c.followUpDate));
 
   const cols = [
     { label: 'Name',         field: 'name' },
@@ -356,7 +347,6 @@ export default function ContactsTable({ data, searchParams }: Props) {
     { label: 'Platform',     field: 'platform' },
     { label: 'Profile',      field: 'profileLink' },
     { label: 'Status',       field: 'status' },
-    { label: 'Response',     field: 'responseStatus' },
     { label: 'Priority',     field: 'priority' },
     { label: 'FU #',         field: 'followUpCount' },
     { label: 'Follow Up',    field: 'followUpDate' },
@@ -407,16 +397,8 @@ export default function ContactsTable({ data, searchParams }: Props) {
           <option value="">All Platforms</option>
           {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
-        <select
-          value={searchParams.responseStatus || ''}
-          onChange={e => router.push(buildUrl({ responseStatus: e.target.value || undefined, page: '1' }))}
-          className="px-3 py-2 text-sm bg-[#111118] border border-[#2d2d3d] rounded-lg text-slate-200 focus:outline-none focus:border-indigo-500"
-        >
-          <option value="">All Responses</option>
-          <option value="NO_REPLY">No Reply</option>
-          <option value="REPLIED">Replied</option>
-        </select>
         <ImportButton />
+        <span className="text-xs text-slate-600 hidden lg:block">Click any cell to edit</span>
       </div>
 
       {/* Table */}
@@ -554,16 +536,6 @@ export default function ContactsTable({ data, searchParams }: Props) {
                         options={STATUSES}
                         onSave={v => updateField(c.id, { status: v as Contact['status'] })}
                         renderValue={v => <StatusBadge status={v} />}
-                      />
-                    </td>
-
-                    {/* Response Status */}
-                    <td className="px-3 py-1.5 min-w-[90px]">
-                      <SelectCell
-                        value={c.responseStatus}
-                        options={['NO_REPLY', 'REPLIED']}
-                        onSave={v => updateField(c.id, { responseStatus: v as Contact['responseStatus'] })}
-                        renderValue={v => <ResponseBadge status={v} />}
                       />
                     </td>
 
