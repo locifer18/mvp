@@ -51,13 +51,19 @@ async function getTodaySentCount() {
 export async function GET() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  const sentToday = await prisma.mailLog.count({ where: { sentAt: { gte: start } } });
-  const logs = await prisma.mailLog.findMany({
-    orderBy: { sentAt: 'desc' },
-    take: 100,
-    include: { contact: { select: { name: true, company: true } } },
-  });
-  return NextResponse.json({ sentToday, remaining: DAILY_LIMIT - sentToday, limit: DAILY_LIMIT, logs });
+  const [sentToday, rawLogs, allSentContactIds] = await Promise.all([
+    prisma.mailLog.count({ where: { sentAt: { gte: start } } }),
+    prisma.mailLog.findMany({
+      orderBy: { sentAt: 'desc' },
+      take: 200,
+      include: { contact: { select: { name: true, company: true } } },
+    }),
+    // ALL contact IDs ever emailed — no limit, used to filter "To Send" tab correctly
+    prisma.mailLog.findMany({ select: { contactId: true }, distinct: ['contactId'] }),
+  ]);
+  const logs = rawLogs.map(l => ({ ...l, sentAt: l.sentAt.toISOString() }));
+  const sentContactIds = allSentContactIds.map(r => r.contactId);
+  return NextResponse.json({ sentToday, remaining: DAILY_LIMIT - sentToday, limit: DAILY_LIMIT, logs, sentContactIds });
 }
 
 export async function POST(req: NextRequest) {

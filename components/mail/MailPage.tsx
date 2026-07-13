@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, CheckSquare, Square, Mail, AlertCircle, CheckCircle, XCircle, Loader2, Plus, Upload, X, Trash2 } from 'lucide-react';
 import { Contact } from '@/types';
 import Link from 'next/link';
@@ -46,6 +46,7 @@ interface Props {
   remaining: number;
   limit: number;
   logs: MailLog[];
+  sentContactIds: string[];
 }
 
 type SendResult = { id: string; name: string; success: boolean; error?: string };
@@ -109,23 +110,26 @@ function ImportButton({ onDone }: { onDone: () => void }) {
   );
 }
 
-export default function MailPage({ contacts, sentToday, remaining: initialRemaining, limit, logs: initialLogs }: Props) {
+export default function MailPage({ contacts: initialContacts, sentToday, limit, logs: initialLogs, sentContactIds: initialSentContactIds }: Props) {
   const router = useRouter();
   const [subject, setSubject] = useState(DEFAULT_SUBJECT);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
+  const [contacts, setContacts] = useState<Contact[]>(initialContacts);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState<string | null>(null);
   const [results, setResults] = useState<SendResult[]>([]);
   const [logs, setLogs] = useState<MailLog[]>(initialLogs);
+  const [sentContactIds, setSentContactIds] = useState<Set<string>>(new Set(initialSentContactIds));
   const [todayCount, setTodayCount] = useState(sentToday);
   const [tab, setTab] = useState<'tosend' | 'sent'>('tosend');
   const [showTemplate, setShowTemplate] = useState(false);
   const [selectedLogs, setSelectedLogs] = useState<Set<string>>(new Set());
 
-  const sentEmails = new Set(logs.map(l => l.toEmail));
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const eligible = contacts.filter(c => c.email);
-  const toSendContacts = eligible.filter(c => !sentEmails.has(c.email!));
-  const sentContacts = eligible.filter(c => sentEmails.has(c.email!));
+  const toSendContacts = eligible.filter(c => !sentContactIds.has(c.id));
 
   const allSelected = toSendContacts.length > 0 && toSendContacts.every(c => selected.has(c.id));
 
@@ -145,12 +149,13 @@ export default function MailPage({ contacts, sentToday, remaining: initialRemain
     });
   }
 
-  async function refreshLogs() {
+  async function refreshData() {
     const res = await fetch('/api/mail/send');
     if (res.ok) {
       const data = await res.json();
       setLogs(data.logs);
       setTodayCount(data.sentToday);
+      setSentContactIds(new Set(data.sentContactIds as string[]));
     }
   }
 
@@ -161,8 +166,8 @@ export default function MailPage({ contacts, sentToday, remaining: initialRemain
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contactIds }),
     });
+    setContacts(prev => prev.filter(c => !contactIds.includes(c.id)));
     setSelected(new Set());
-    router.refresh();
   }
 
   async function deleteLogs(logIds: string[]) {
@@ -176,7 +181,7 @@ export default function MailPage({ contacts, sentToday, remaining: initialRemain
     setSelectedLogs(new Set());
   }
 
-  const sendMails = useCallback(async (contactIds: string[], key: string) => {
+  async function sendMails(contactIds: string[], key: string) {
     const toSend = eligible
       .filter(c => contactIds.includes(c.id))
       .map(c => ({ id: c.id, name: c.name, email: c.email! }));
@@ -195,14 +200,33 @@ export default function MailPage({ contacts, sentToday, remaining: initialRemain
     const data = await res.json();
     if (!res.ok) {
       setResults([{ id: '', name: '', success: false, error: data.error }]);
-    } else {
-      setResults(data.results);
-      setTodayCount(prev => prev + data.sent);
-      setSelected(new Set());
-      await refreshLogs();
+      setSending(null);
+      return;
     }
+
+    // Optimistically mark these contact IDs as sent immediately
+    const successIds = new Set<string>((data.results as { id: string; success: boolean }[]).filter(r => r.success).map(r => r.id));
+    setSentContactIds(prev => new Set([...prev, ...successIds]));
+    const now = new Date().toISOString();
+    const newLogs: MailLog[] = toSend
+      .filter(c => successIds.has(c.id))
+      .map(c => ({
+        id: `temp-${c.id}`,
+        toEmail: c.email,
+        toName: c.name,
+        subject,
+        sentAt: now,
+        contact: { name: c.name, company: contacts.find(x => x.id === c.id)?.company ?? null },
+      }));
+    setLogs(prev => [...newLogs, ...prev]);
+    setTodayCount(prev => prev + successIds.size);
+    setResults(data.results);
+    setSelected(new Set());
     setSending(null);
-  }, [eligible, subject, template]);
+
+    // Sync real log IDs from server in background
+    refreshData();
+  }
 
   const remaining = limit - todayCount;
 
@@ -301,7 +325,7 @@ export default function MailPage({ contacts, sentToday, remaining: initialRemain
             tab === 'tosend' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          To Send ({toSendContacts.length})
+          To Send {mounted ? `(${toSendContacts.length})` : ''}
         </button>
         <button
           onClick={() => setTab('sent')}
@@ -309,7 +333,7 @@ export default function MailPage({ contacts, sentToday, remaining: initialRemain
             tab === 'sent' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Sent ({sentContacts.length})
+          Sent {mounted ? `(${logs.length})` : ''}
         </button>
       </div>
 

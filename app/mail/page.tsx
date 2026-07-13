@@ -36,21 +36,21 @@ export default async function MailRoute() {
     sentAt: string;
     contact: { name: string; company: string | null };
   }[] = [];
+  let sentContactIds: string[] = [];
 
   try {
-    const [count, logs] = await Promise.all([
+    const [count, logs, allSent] = await Promise.all([
       prisma.mailLog.count({ where: { sentAt: { gte: start } } }),
       prisma.mailLog.findMany({
         orderBy: { sentAt: 'desc' },
         take: 200,
         include: { contact: { select: { name: true, company: true } } },
       }),
+      prisma.mailLog.findMany({ select: { contactId: true }, distinct: ['contactId'] }),
     ]);
     sentToday = count;
-    serializedLogs = logs.map(l => ({
-      ...l,
-      sentAt: l.sentAt.toISOString(),
-    }));
+    serializedLogs = logs.map(l => ({ ...l, sentAt: l.sentAt.toISOString() }));
+    sentContactIds = allSent.map(r => r.contactId);
   } catch {
     // MailLog table not yet created — run: npx prisma db push
   }
@@ -64,6 +64,7 @@ export default async function MailRoute() {
       remaining={LIMIT - sentToday}
       limit={LIMIT}
       logs={serializedLogs}
+      sentContactIds={sentContactIds}
     />
   );
 }
